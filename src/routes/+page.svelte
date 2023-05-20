@@ -203,28 +203,30 @@
 			{#each rows as _, j}
 				<div class="border-l-2 border-b-2 border-base-200 group flex justify-center items-center">
 					{#if data.nodes.find((node) => i == node.col && j == node.row)}
-					<div class="relative">
-						<div class="hidden group-hover:block bg-base-300 rounded absolute top-full left-full element-inside-grid">
-							{#each data.nodes.find((node) => i == node.col && j == node.row).tasks as task, k}
-								<div class="flex flex-col">
-									<div class="form-control">
-										<label class="cursor-pointer label">
-											<span class="label-text m-2">{task.name}</span>
-											<input
-												id={`C ${i} ${j} ${k}`}
-												type="checkbox"
-												class="toggle toggle-primary ml-auto"
-												checked={task.finished}
-												on:change={({ currentTarget }) => {
-													toggleTask(currentTarget.id);
-												}}
-											/>
-										</label>
+						<div class="relative">
+							<div
+								class="hidden group-hover:block bg-base-300 rounded absolute top-full left-full element-inside-grid"
+							>
+								{#each data.nodes.find((node) => i == node.col && j == node.row).tasks as task, k}
+									<div class="flex flex-col">
+										<div class="form-control">
+											<label class="cursor-pointer label">
+												<span class="label-text m-2">{task.name}</span>
+												<input
+													id={`C ${i} ${j} ${k}`}
+													type="checkbox"
+													class="toggle toggle-primary ml-auto"
+													checked={task.finished}
+													on:change={({ currentTarget }) => {
+														toggleTask(currentTarget.id);
+													}}
+												/>
+											</label>
+										</div>
 									</div>
-								</div>
-							{/each}
+								{/each}
+							</div>
 						</div>
-					</div>
 						<button
 							id={`${i} ${j}`}
 							class={data.nodes.find((node) => i == node.col && j == node.row)?.finished
