@@ -2,71 +2,33 @@
 	import { browser } from '$app/environment';
 
 	class Data {
-		public cols: number;
-		public rows: number;
-		public nodes: Node[];
-
-		constructor(cols: number, rows: number) {
-			this.cols = cols;
-			this.rows = rows;
-			this.nodes = [];
-		}
+		constructor(public cols: number, public rows: number, public nodes: Node[]) {}
 
 		toString() {
-			return `${this.cols} ${this.rows},${this.nodes.map((node) => `${node.toString()},`)}`;
+			return JSON.stringify(this);
 		}
 
 		static from(d: string) {
-			let table = d.split(' ');
+			let object = JSON.parse(d);
 
-			let cols = parseInt(table[0]);
-			let rows = parseInt(table[1]);
+			let data = new this(object.cols, object.rows, object.nodes);
 
-			let object = new this(cols, rows);
-
-			let nodes = d.split(',');
-			nodes.splice(0, 1);
-
-			nodes.map((node) => {
-				let dimensions = node.split(' ');
-				let col = parseInt(dimensions[0]);
-				let row = parseInt(dimensions[1]);
-
-				if (!isNaN(col) && !isNaN(row)) {
-					let finished = dimensions[2] === 'true';
-
-					dimensions.splice(0, 3);
-
-					let str = dimensions.join(' ');
-
-					let n = new Node(col, row, str);
-
-					n.finished = finished;
-
-					object.nodes.push(n);
-				}
-			});
-
-			return object;
+			return data;
 		}
 	}
 
 	class Node {
-		public col: number;
-		public row: number;
-		public finished: boolean;
-		public svg: string;
+		constructor(
+			public col: number,
+			public row: number,
+			public svg: string,
+			public tasks: Task[] = [],
+			public finished: boolean = false
+		) {}
+	}
 
-		constructor(col: number, row: number, svg: string) {
-			this.col = col;
-			this.row = row;
-			this.finished = false;
-			this.svg = svg;
-		}
-
-		toString() {
-			return `${this.col} ${this.row} ${this.finished} ${this.svg}`;
-		}
+	class Task {
+		constructor(public name: string, public finished: boolean = false) {}
 	}
 
 	let generated = browser ? localStorage.getItem('table') : false;
@@ -79,13 +41,16 @@
 	if (generated) {
 		data = Data.from(generated);
 
+		cols = new Array(data?.cols);
+		rows = new Array(data?.rows);
+
 		console.log(data);
 	}
 
 	function save(d: Data) {
-		data.nodes.sort();
+		d.nodes.sort();
 
-		data = data;
+		data = d;
 
 		localStorage.setItem('table', data.toString());
 	}
@@ -94,7 +59,7 @@
 		let col = parseInt((document.getElementById('cols') as HTMLInputElement).value);
 		let row = parseInt((document.getElementById('rows') as HTMLInputElement).value);
 
-		data = new Data(col, row);
+		data = new Data(col, row, []);
 
 		save(data);
 
@@ -108,7 +73,17 @@
 		let col = parseInt(id.split(' ')[0]);
 		let row = parseInt(id.split(' ')[1]);
 
-		data.nodes.push(new Node(col, row, (document.getElementById('svg') as HTMLInputElement).value));
+		let list = document.getElementById('tasks')?.getElementsByTagName('input')!;
+
+		let tasks: Task[] = [];
+
+		for (let item of list) {
+			tasks.push(new Task(item.value));
+		}
+
+		data.nodes.push(
+			new Node(col, row, (document.getElementById('svg') as HTMLInputElement).value, tasks)
+		);
 
 		save(data);
 
@@ -116,11 +91,23 @@
 		popup = false;
 	}
 
+	function addTask() {
+		let element = document.createElement('div');
+		element.id = 'tasks';
+		element.innerHTML = `
+						<input
+							type="text"
+							placeholder="task"
+							class="input input-bordered input-info w-full max-w-xs mt-2"
+						/>`;
+		document.getElementById('tasks')?.appendChild(element);
+	}
+
 	function toggleFinished(id: string) {
 		let col = parseInt(id.split(' ')[0]);
 		let row = parseInt(id.split(' ')[1]);
 
-		let node = data.nodes.find((node) => col === node.col && row === node.row);
+		let node = data.nodes.find((node) => col === node.col && row === node.row)!;
 		let index = data.nodes.indexOf(node);
 
 		node.finished = !node.finished;
@@ -130,9 +117,17 @@
 		save(data);
 	}
 
-	if (generated) {
-		cols = new Array(data?.cols);
-		rows = new Array(data?.rows);
+	function toggleTask(id: string) {
+		let col = parseInt(id.split(' ')[1]);
+		let row = parseInt(id.split(' ')[2]);
+		let task = parseInt(id.split(' ')[3]);
+
+		let node = data.nodes.find((node) => col === node.col && row === node.row)!;
+		let index = data.nodes.indexOf(node);
+
+		data.nodes[index].tasks[task].finished = !data.nodes[index].tasks[task].finished;
+
+		save(data);
 	}
 
 	function position(node: SVGLineElement) {
@@ -140,19 +135,19 @@
 		let row = node.id.split(' ')[1];
 		node.setAttribute(
 			'x1',
-			document.getElementById(`${col} ${row}`).getBoundingClientRect().left.toString()
+			document.getElementById(`${col} ${row}`)!.getBoundingClientRect().left.toString()
 		);
 		node.setAttribute(
 			'x2',
-			document.getElementById(`origin`).getBoundingClientRect().left.toString()
+			document.getElementById(`origin`)!.getBoundingClientRect().left.toString()
 		);
 		node.setAttribute(
 			'y1',
-			document.getElementById(`${col} ${row}`).getBoundingClientRect().top.toString()
+			document.getElementById(`${col} ${row}`)!.getBoundingClientRect().top.toString()
 		);
 		node.setAttribute(
 			'y2',
-			document.getElementById(`origin`).getBoundingClientRect().top.toString()
+			document.getElementById(`origin`)!.getBoundingClientRect().top.toString()
 		);
 	}
 </script>
@@ -169,13 +164,29 @@
 			<input type="checkbox" id="popop-modal" checked={true} class="modal-toggle" />
 			<div class="modal">
 				<div class="modal-box">
-					<h3 class="font-bold text-lg">Enter number of columns and rows</h3>
+					<h3 class="font-bold text-lg">Enter SVG</h3>
 					<input
 						type="text"
 						id="svg"
 						placeholder="svg"
-						class="input input-bordered input-primary w-full max-w-xs mt-2"
+						class="input input-bordered input-primary w-full max-w-xs m-2"
 					/>
+					<h3 class="text-sm font-light">Enter tasks (optional)</h3>
+					<div id="tasks">
+						<input
+							type="text"
+							placeholder="task"
+							class="input input-bordered input-info w-full max-w-xs mt-2"
+						/>
+					</div>
+					<div class="flex">
+						<button
+							class="ml-auto btn"
+							on:click={() => {
+								addTask();
+							}}>Add</button
+						>
+					</div>
 					<div class="modal-action">
 						<button
 							class="btn btn-primary"
@@ -190,18 +201,40 @@
 		{/if}
 		{#each cols as _, i}
 			{#each rows as _, j}
-				<div class="group flex justify-center items-center">
+				<div class="border-l-2 border-b-2 border-base-200 group flex justify-center items-center">
 					{#if data.nodes.find((node) => i == node.col && j == node.row)}
+					<div class="relative">
+						<div class="hidden group-hover:block bg-base-300 rounded absolute top-full left-full element-inside-grid">
+							{#each data.nodes.find((node) => i == node.col && j == node.row).tasks as task, k}
+								<div class="flex flex-col">
+									<div class="form-control">
+										<label class="cursor-pointer label">
+											<span class="label-text m-2">{task.name}</span>
+											<input
+												id={`C ${i} ${j} ${k}`}
+												type="checkbox"
+												class="toggle toggle-primary ml-auto"
+												checked={task.finished}
+												on:change={({ currentTarget }) => {
+													toggleTask(currentTarget.id);
+												}}
+											/>
+										</label>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
 						<button
 							id={`${i} ${j}`}
-							class={data.nodes.find((node) => i == node.col && j == node.row).finished
-								? 'btn btn-success mask mask-hexagon-2 text-4xl mt-1'
-								: 'btn btn-base-300 mask mask-hexagon-2 text-4xl mt-1'}
+							class={data.nodes.find((node) => i == node.col && j == node.row)?.finished
+								? 'btn btn-success mask mask-hexagon-2 min-h-fit h-auto'
+								: 'btn btn-base-300 mask mask-hexagon-2 min-h-fit h-auto'}
 							on:click={({ currentTarget }) => {
 								toggleFinished(currentTarget.id);
 							}}
 						>
-							{@html data.nodes.find((node) => i == node.col && j == node.row).svg}
+							{@html data.nodes.find((node) => i == node.col && j == node.row)?.svg}
 						</button>
 					{:else if Math.floor(cols.length / 2) == i && Math.floor(rows.length / 2) == j}
 						<div id="origin">
@@ -218,32 +251,18 @@
 						<div class="hidden group-hover:block">
 							<button
 								id={`${i} ${j}`}
-								class="btn btn-base-300 mask mask-hexagon-2 text-4xl mt-1"
+								class="btn btn-base-300 mask mask-hexagon-2 text-xl min-h-fit h-auto"
 								on:click={({ currentTarget }) => {
 									popup = true;
 									id = currentTarget.id;
 								}}
 							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									width="36px"
-									height="40px"
-									><path
-										fill="currentColor"
-										d="M12 19q-.425 0-.713-.288T11 18v-5H6q-.425 0-.713-.288T5 12q0-.425.288-.713T6 11h5V6q0-.425.288-.713T12 5q.425 0 .713.288T13 6v5h5q.425 0 .713.288T19 12q0 .425-.288.713T18 13h-5v5q0 .425-.288.713T12 19Z"
-									/></svg
-								>
+								+
 							</button>
 						</div>
 					{/if}
 				</div>
 			{/each}
-		{/each}
-	</div>
-	<div>
-		{#each data.nodes as node}
-			<svg><line id={`${node.col} ${node.row}`} use:position stroke="black" /></svg>
 		{/each}
 	</div>
 {:else}
